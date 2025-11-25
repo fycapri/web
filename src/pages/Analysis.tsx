@@ -3,7 +3,7 @@ import { useSearchParams } from 'react-router-dom';
 import { Device, EnvironmentData, TimeRange } from '../types';
 import { dataService } from '../services/dataService';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, LineChart, Line, PieChart, Pie, Cell } from 'recharts';
-import { Download, TrendingUp, TrendingDown, Minus } from 'lucide-react';
+import { Download } from 'lucide-react';
 import { format } from 'date-fns';
 import zhCN from 'date-fns/locale/zh-CN';
 
