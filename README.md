@@ -54,6 +54,13 @@ npm run build
 npm run preview
 ```
 
+构建完成后会在 `dist/` 目录生成静态文件，可部署到 Web 服务器或静态托管平台（Netlify、Vercel 等）。
+
+### 在线演示
+
+- Netlify（推荐，国内访问较稳定）：https://snazzy-liger-435f52.netlify.app/
+- Vercel（海外节点，部分网络可能访问受限）：https://web-hgbr.vercel.app/
+
 ## 项目结构
 
 ```
