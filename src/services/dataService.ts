@@ -1,4 +1,4 @@
-import { EnvironmentData, Device, Alert, TimeRange } from '../types';
+import { EnvironmentData, Device, Alert, TimeRange, DeviceRuntimeLog, PlatformAuditLog, LogLevel, PlatformAction } from '../types';
 
 // 模拟数据生成函数
 function generateRandomValue(min: number, max: number): number {
@@ -96,10 +96,98 @@ const devices: Device[] = [
   },
 ];
 
+function generateRequestId(): string {
+  return `req_${Math.random().toString(16).slice(2, 10)}${Math.random().toString(16).slice(2, 6)}`;
+}
+
+function pick<T>(arr: T[]): T {
+  return arr[Math.floor(Math.random() * arr.length)];
+}
+
+function randomLevel(): LogLevel {
+  const r = Math.random();
+  if (r < 0.78) return 'info';
+  if (r < 0.93) return 'warn';
+  return 'error';
+}
+
+const runtimeModules = ['BOOT', 'SD', 'GPS', 'NET', 'SENSOR', 'UPLOAD', 'RTC', 'USB'];
+const runtimeMessages: Record<string, string[]> = {
+  BOOT: ['系统启动完成，配置加载 OK', '检测到配置升级，自动更新配置文件', 'EEPROM 同步完成'],
+  SD: ['SD 卡挂载成功', 'events.log 写入 OK', 'SD 卡写入失败，回退 EEPROM'],
+  GPS: ['GPS 信号弱，lat/lon 不更新', 'GPS 恢复正常', '定位数据更新'],
+  NET: ['网络断开，进入离线缓存模式', '网络恢复，开始补传', 'APN 配置无效，拨号失败'],
+  SENSOR: ['传感器上线', '传感器数据超限', '传感器无数据'],
+  UPLOAD: ['上传任务开始，队列=3', '上传成功', '上传失败，将重试'],
+  RTC: ['RTC 时间校准完成', 'RTC 读取失败，使用默认时间'],
+  USB: ['USB 切换到 CDC_ONLY', 'USB 切换到 CDC_MSC'],
+};
+
+const auditActors = ['admin', 'operator', 'system'];
+const auditActions: PlatformAction[] = ['cfg_set', 'cfg_save', 'command', 'ota', 'login', 'other'];
+
+function generateDeviceRuntimeLogs(deviceId: string, count: number, start: Date, end: Date): DeviceRuntimeLog[] {
+  const span = end.getTime() - start.getTime();
+  const logs: DeviceRuntimeLog[] = [];
+  for (let i = 0; i < count; i++) {
+    const module = pick(runtimeModules);
+    const timestamp = new Date(start.getTime() + Math.random() * span);
+    const level = randomLevel();
+    const message = pick(runtimeMessages[module] || ['状态更新']);
+    logs.push({
+      id: `${deviceId}-rt-${Math.random().toString(36).slice(2, 10)}`,
+      timestamp,
+      level,
+      module,
+      deviceId,
+      message,
+      requestId: generateRequestId(),
+    });
+  }
+  return logs.sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime());
+}
+
+function generatePlatformAuditLogs(count: number, start: Date, end: Date): PlatformAuditLog[] {
+  const span = end.getTime() - start.getTime();
+  const logs: PlatformAuditLog[] = [];
+  for (let i = 0; i < count; i++) {
+    const timestamp = new Date(start.getTime() + Math.random() * span);
+    const level = randomLevel();
+    const action = pick(auditActions);
+    const actor = pick(auditActors);
+    const device = Math.random() < 0.7 ? pick(devices) : undefined;
+    const msg =
+      action === 'cfg_set'
+        ? '修改设备配置字段'
+        : action === 'cfg_save'
+          ? '保存设备配置'
+          : action === 'command'
+            ? '下发设备命令'
+            : action === 'ota'
+              ? '触发 OTA 升级'
+              : action === 'login'
+                ? '用户登录'
+                : '平台操作';
+    logs.push({
+      id: `audit-${Math.random().toString(36).slice(2, 10)}`,
+      timestamp,
+      level,
+      action,
+      actor,
+      deviceId: device?.id,
+      message: device ? `${msg}（${device.name}）` : msg,
+      requestId: generateRequestId(),
+    });
+  }
+  return logs.sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime());
+}
+
 // 数据服务类
 class DataService {
   private dataCache: Map<string, EnvironmentData[]> = new Map();
   private intervalId: number | null = null;
+  private runtimeLogCache: Map<string, DeviceRuntimeLog[]> = new Map();
+  private auditLogCache: PlatformAuditLog[] | null = null;
 
   // 获取实时数据
   getCurrentData(deviceId?: string): EnvironmentData {
@@ -222,6 +310,101 @@ class DataService {
       ...device,
       lastUpdate: new Date(device.lastUpdate),
     }));
+  }
+
+  getDeviceRuntimeLogs(params: {
+    deviceId: string;
+    start: Date;
+    end: Date;
+    level?: LogLevel | 'all';
+    module?: string | 'all';
+    keyword?: string;
+    page?: number;
+    pageSize?: number;
+  }): { total: number; items: DeviceRuntimeLog[] } {
+    const {
+      deviceId,
+      start,
+      end,
+      level = 'all',
+      module = 'all',
+      keyword = '',
+      page = 1,
+      pageSize = 20,
+    } = params;
+
+    const cacheKey = `${deviceId}-${start.toISOString()}-${end.toISOString()}`;
+    let logs = this.runtimeLogCache.get(cacheKey);
+    if (!logs) {
+      logs = generateDeviceRuntimeLogs(deviceId, 220, start, end);
+      this.runtimeLogCache.set(cacheKey, logs);
+    }
+
+    const kw = keyword.trim().toLowerCase();
+    const filtered = logs.filter((l) => {
+      if (level !== 'all' && l.level !== level) return false;
+      if (module !== 'all' && l.module !== module) return false;
+      if (!kw) return true;
+      return (
+        l.message.toLowerCase().includes(kw) ||
+        l.module.toLowerCase().includes(kw) ||
+        (l.requestId || '').toLowerCase().includes(kw)
+      );
+    });
+
+    const total = filtered.length;
+    const startIdx = (page - 1) * pageSize;
+    const items = filtered.slice(startIdx, startIdx + pageSize);
+    return { total, items };
+  }
+
+  getPlatformAuditLogs(params: {
+    start: Date;
+    end: Date;
+    level?: LogLevel | 'all';
+    action?: PlatformAction | 'all';
+    actor?: string | 'all';
+    deviceId?: string | 'all';
+    keyword?: string;
+    page?: number;
+    pageSize?: number;
+  }): { total: number; items: PlatformAuditLog[] } {
+    const {
+      start,
+      end,
+      level = 'all',
+      action = 'all',
+      actor = 'all',
+      deviceId = 'all',
+      keyword = '',
+      page = 1,
+      pageSize = 20,
+    } = params;
+
+    if (!this.auditLogCache) {
+      this.auditLogCache = generatePlatformAuditLogs(260, start, end);
+    }
+
+    const kw = keyword.trim().toLowerCase();
+    const filtered = this.auditLogCache.filter((l) => {
+      if (l.timestamp < start || l.timestamp > end) return false;
+      if (level !== 'all' && l.level !== level) return false;
+      if (action !== 'all' && l.action !== action) return false;
+      if (actor !== 'all' && l.actor !== actor) return false;
+      if (deviceId !== 'all' && l.deviceId !== deviceId) return false;
+      if (!kw) return true;
+      return (
+        l.message.toLowerCase().includes(kw) ||
+        l.action.toLowerCase().includes(kw) ||
+        l.actor.toLowerCase().includes(kw) ||
+        (l.requestId || '').toLowerCase().includes(kw)
+      );
+    });
+
+    const total = filtered.length;
+    const startIdx = (page - 1) * pageSize;
+    const items = filtered.slice(startIdx, startIdx + pageSize);
+    return { total, items };
   }
 
   // 获取告警信息

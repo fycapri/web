@@ -6,6 +6,7 @@ import Analysis from './pages/Analysis';
 import Devices from './pages/Devices';
 import Alerts from './pages/Alerts';
 import Settings from './pages/Settings';
+import DeviceLogs from './pages/DeviceLogs';
 
 function App() {
   return (
@@ -16,6 +17,7 @@ function App() {
           <Route path="/map" element={<MapView />} />
           <Route path="/analysis" element={<Analysis />} />
           <Route path="/devices" element={<Devices />} />
+          <Route path="/logs" element={<DeviceLogs />} />
           <Route path="/alerts" element={<Alerts />} />
           <Route path="/settings" element={<Settings />} />
         </Routes>

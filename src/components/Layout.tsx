@@ -1,6 +1,6 @@
 import { ReactNode } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { LayoutDashboard, Activity, AlertTriangle, Settings, Menu, X, Map, BarChart3 } from 'lucide-react';
+import { LayoutDashboard, Activity, AlertTriangle, Settings, Menu, X, Map, BarChart3, FileText } from 'lucide-react';
 import { useState } from 'react';
 
 interface LayoutProps {
@@ -16,6 +16,7 @@ export default function Layout({ children }: LayoutProps) {
     { path: '/map', label: '地图视图', icon: Map },
     { path: '/analysis', label: '数据分析', icon: BarChart3 },
     { path: '/devices', label: '设备管理', icon: Activity },
+    { path: '/logs', label: '设备日志', icon: FileText },
     { path: '/alerts', label: '告警中心', icon: AlertTriangle },
     { path: '/settings', label: '系统设置', icon: Settings },
   ];

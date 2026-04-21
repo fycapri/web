@@ -30,5 +30,30 @@ export interface Alert {
   resolved: boolean;
 }
 
+export type LogLevel = 'info' | 'warn' | 'error';
+
+export interface DeviceRuntimeLog {
+  id: string;
+  timestamp: Date;
+  level: LogLevel;
+  module: string;
+  deviceId: string;
+  message: string;
+  requestId?: string;
+}
+
+export type PlatformAction = 'cfg_set' | 'cfg_save' | 'command' | 'ota' | 'login' | 'other';
+
+export interface PlatformAuditLog {
+  id: string;
+  timestamp: Date;
+  level: LogLevel;
+  action: PlatformAction;
+  actor: string; // 用户/系统
+  deviceId?: string;
+  message: string;
+  requestId?: string;
+}
+
 export type TimeRange = '1h' | '6h' | '24h' | '7d' | '30d';
 
